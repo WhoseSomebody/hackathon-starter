@@ -22,14 +22,14 @@ const sass = require('node-sass-middleware');
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
  */
-dotenv.load({ path: '.env.example' });
+dotenv.load({ path: '.env' });
 
 /**
  * Controllers (route handlers).
  */
 const homeController = require('./controllers/home');
 const userController = require('./controllers/user');
-const contactController = require('./controllers/contact');
+// const contactController = require('./controllers/contact');
 
 /**
  * API keys and Passport configuration.

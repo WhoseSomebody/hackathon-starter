@@ -6,12 +6,10 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 const VKontakteStrategy = require('passport-vkontakte').Strategy;
 const TwitterStrategy = require('passport-twitter').Strategy;
-// const InstagramStrategy = require('passport-instagram').Strategy;
-// const GitHubStrategy = require('passport-github').Strategy;
-// const LinkedInStrategy = require('passport-linkedin-oauth2').Strategy;
 const OpenIDStrategy = require('passport-openid').Strategy;
 const OAuthStrategy = require('passport-oauth').OAuthStrategy;
 const OAuth2Strategy = require('passport-oauth').OAuth2Strategy;
+const nodemailer = require('nodemailer');
 
 const User = require('../models/User');
 
@@ -34,30 +32,20 @@ passport.use(new LocalStrategy({ usernameField: 'email' }, (email, password, don
         if (!user) {
             return done(null, false, { msg: `Email ${email} not found.` });
         }
-        user.comparePassword(password, (err, isMatch) => {
-            if (err) { return done(err); }
-            if (isMatch) {
-                return done(null, user);
-            }
-            return done(null, false, { msg: 'Invalid email or password.' });
-        });
+        if (user.password) {
+            user.comparePassword(password, (err, isMatch) => {
+                if (err) { return done(err); }
+                if (isMatch) {
+                    return done(null, user);
+                }
+                return done(null, false, { msg: 'Invalid email or password.' });
+            });
+        } else {
+            return done(null, false, { msg: 'The password for this email is not set yet. Use social buttons to log in.' });
+        }
+
     });
 }));
-
-/**
- * OAuth Strategy Overview
- *
- * - User is already logged in.
- *   - Check if there is an existing account with a provider id.
- *     - If there is, return an error message. (Account merging not supported)
- *     - Else link new OAuth account with currently logged-in user.
- * - User is not logged in.
- *   - Check if it's a returning user.
- *     - If returning user, sign in and we are done.
- *     - Else check if there is an existing account with user's email.
- *       - If there is, return an error message.
- *       - Else create a new account.
- */
 
 /**
  * Sign in with VK.
@@ -129,6 +117,7 @@ passport.use(new VKontakteStrategy({
                         user.profile.bdate = new Date(profile._json.bdate.replace(/(\d{2}).(\d{2}).(\d{4})/, "$2/$1/$3"));
                         user.profile.city = profile._json.city ? profile._json.city.title : undefined;
                         user.profile.country = profile._json.country ? profile._json.country.title : undefined;
+
                         user.save((err) => {
                             done(err, user);
                         });
@@ -165,6 +154,7 @@ passport.use(new FacebookStrategy({
                     user.email = user.email || profile._json.email;
                     user.profile.bdate = user.profile.bdate || profile._json.birthday;
                     user.profile.city = user.profile.city || profile._json.location;
+
                     user.save((err) => {
                         req.flash('info', { msg: 'Facebook account has been linked.' });
                         done(err, user);
@@ -199,6 +189,7 @@ passport.use(new FacebookStrategy({
                     user.profile.gender = profile._json.gender;
                     user.profile.bdate = profile._json.birthday;
                     user.profile.city = profile._json.location;
+
                     user.save((err) => {
                         done(err, user);
                     });
@@ -207,65 +198,6 @@ passport.use(new FacebookStrategy({
         });
     }
 }));
-
-/**
- * Sign in with GitHub.
- */
-// passport.use(new GitHubStrategy({
-//   clientID: process.env.GITHUB_ID,
-//   clientSecret: process.env.GITHUB_SECRET,
-//   callbackURL: '/auth/github/callback',
-//   passReqToCallback: true
-// }, (req, accessToken, refreshToken, profile, done) => {
-//   if (req.user) {
-//     User.findOne({ github: profile.id }, (err, existingUser) => {
-//       if (existingUser) {
-//         req.flash('errors', { msg: 'There is already a GitHub account that belongs to you. Sign in with that account or delete it, then link it with your current account.' });
-//         done(err);
-//       } else {
-//         User.findById(req.user.id, (err, user) => {
-//           if (err) { return done(err); }
-//           user.github = profile.id;
-//           user.tokens.push({ kind: 'github', accessToken });
-//           user.profile.name = user.profile.name || profile.displayName;
-//           user.profile.picture = user.profile.picture || profile._json.avatar_url;
-//           user.profile.location = user.profile.location || profile._json.location;
-//           user.profile.website = user.profile.website || profile._json.blog;
-//           user.save((err) => {
-//             req.flash('info', { msg: 'GitHub account has been linked.' });
-//             done(err, user);
-//           });
-//         });
-//       }
-//     });
-//   } else {
-//     User.findOne({ github: profile.id }, (err, existingUser) => {
-//       if (err) { return done(err); }
-//       if (existingUser) {
-//         return done(null, existingUser);
-//       }
-//       User.findOne({ email: profile._json.email }, (err, existingEmailUser) => {
-//         if (err) { return done(err); }
-//         if (existingEmailUser) {
-//           req.flash('errors', { msg: 'There is already an account using this email address. Sign in to that account and link it with GitHub manually from Account Settings.' });
-//           done(err);
-//         } else {
-//           const user = new User();
-//           user.email = profile._json.email;
-//           user.github = profile.id;
-//           user.tokens.push({ kind: 'github', accessToken });
-//           user.profile.name = profile.displayName;
-//           user.profile.picture = profile._json.avatar_url;
-//           user.profile.location = profile._json.location;
-//           user.profile.website = profile._json.blog;
-//           user.save((err) => {
-//             done(err, user);
-//           });
-//         }
-//       });
-//     });
-//   }
-// }));
 
 // Sign in with Twitter.
 
@@ -304,10 +236,6 @@ passport.use(new TwitterStrategy({
                 return done(null, existingUser);
             }
             const user = new User();
-            // Twitter will not provide an email address.  Period.
-            // But a person’s twitter username is guaranteed to be unique
-            // so we can "fake" a twitter email address as follows:
-            // user.email = `${profile.username}@twitter.com`;
             user.twitter = profile.id;
             user.tokens.push({ kind: 'twitter', accessToken, tokenSecret });
             user.profile.name = profile.displayName;
