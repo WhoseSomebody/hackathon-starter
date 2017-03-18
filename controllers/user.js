@@ -42,7 +42,7 @@ exports.postLogin = (req, res, next) => {
     req.logIn(user, (err) => {
       if (err) { return next(err); }
       req.flash('success', { msg: 'Success! You are logged in.' });
-      res.redirect(req.session.returnTo || '/');
+      res.redirect(req.session.returnTo || '/account');
     });
   })(req, res, next);
 };
@@ -139,8 +139,10 @@ exports.postUpdateProfile = (req, res, next) => {
     user.email = req.body.email || '';
     user.profile.name = req.body.name || '';
     user.profile.gender = req.body.gender || '';
-    user.profile.location = req.body.location || '';
-    user.profile.website = req.body.website || '';
+    user.profile.city = req.body.city || '';
+    user.profile.country = req.body.country || '';
+    user.profile.bdate = req.body.bdate || '';
+    user.thoughts = req.body.thoughts.split(',') || [];
     user.save((err) => {
       if (err) {
         if (err.code === 11000) {
@@ -372,4 +374,144 @@ exports.postForgot = (req, res, next) => {
     if (err) { return next(err); }
     res.redirect('/forgot');
   });
+};
+
+/**
+ * GET /provide-email
+ * Page for adding user email to his/her profile.
+ */
+exports.getProvideEmail = (req, res, next) => {
+    if (req.user) {
+        if (req.user.email) {
+            return res.redirect('/account');
+        }
+        else {
+            return res.render('account/provide-email' , {
+                title: "Provide Us with an Email"
+            })
+        }
+    }
+    else
+        res.redirect('/')
+}
+
+/**
+ * POST /provide-email
+ * Add email to profile info.
+ */
+exports.postProvideEmail = (req, res, next) => {
+    req.assert('email', 'Please enter a valid email address.').isEmail();
+    req.sanitize('email').normalizeEmail({ remove_dots: false });
+
+    const errors = req.validationErrors();
+
+    if (errors) {
+        req.flash('errors', errors);
+        return res.redirect('/provide-email');
+    }
+    User.findOne({ email: req.body.email }, (err, existingEmailUser) => {
+        if (err) {
+            return done(err);
+        }
+        if (existingEmailUser) {
+            if (!existingEmailUser.vk) {
+                // existingEmailUser.vk = req.user.profile.id;
+                req.user.tokens.push(
+                    ...existingEmailUser.tokens.filter( obj => {
+                        return obj.kind != "vk";
+                    })
+                );
+                req.user.email = req.body.email;
+                req.user.facebook = existingEmailUser.facebook || undefined;
+                req.user.twitter = existingEmailUser.twitter || undefined;
+                req.user.google = existingEmailUser.google || undefined;
+
+                req.user.profile.name = existingEmailUser.profile.name || req.user.profile.name;
+                req.user.profile.gender = existingEmailUser.profile.gender ||req.user.profile.gender;
+                req.user.profile.bdate = existingEmailUser.profile.bdate || req.user.profile.bdate;
+                req.user.profile.city = existingEmailUser.profile.city || req.user.profile.city;
+                req.user.profile.country = existingEmailUser.profile.country || req.user.profile.country;
+                existingEmailUser.remove();
+                req.user.save((err) => {
+                    req.flash('info', { msg: 'VK account has been linked.' });
+                    res.redirect('/account')
+                });
+            }
+        } else {
+            User.findById(req.user.id, (err, user) => {
+                if (err) {
+                    return next(err);
+                }
+                user.email = req.body.email;
+                user.save((err) => {
+                    if (err) {
+                        return next(err);
+                    }
+                    res.redirect('/provide-email');
+                });
+            });
+        }
+    })
+};
+
+/**
+ * For any logged in route. Check if e-mail is entered.
+ */
+
+exports.requireEmail = (req, res, next) => {
+    if (req.user) {
+        if (req.user.email) {
+            next();
+        } else {
+            res.redirect("/provide-email");
+        }
+    } else {
+        res.redirect("/login");
+    }
+
+}
+
+/**
+ * post /thought/add
+ * Add new thought to the thoughts array.
+ */
+exports.postThoughtAdd = (req, res, next) => {
+    if (req.user){
+        req.checkBody('thought', 'The word must be at least 4 characters long').len(4);
+        req.checkBody('thought', 'The thought shouldn\'t contain spaces.').matches('^[A-Za-z0-9]+$');
+
+        const errors = req.validationErrors();
+
+        if (errors) {
+            req.flash('errors', errors);
+            return res.redirect('back');
+        }
+        User.findById(req.user.id, (err, user) => {
+            if (err) { return next(err); }
+            user.thoughts.push(req.body.thought);
+            console.log(req.body.thought);
+            user.save((err) => {
+                if (err) { return next(err); }
+                req.flash('info', { msg: `Thought has been added.` });
+                res.redirect('back');
+            });
+        });
+    } else
+        res.redirect("back");
+};
+
+/**
+ * GET /thoughts
+ * Add new thought to the thoughts array.
+ */
+exports.getThoughtsRead = (req, res) => {
+    if (req.user) {
+        User.findById(req.user.id, (err, user) => {
+            if (err) {
+                return next(err);
+            }
+            return res.send(user.thoughts);
+        });
+    } else
+        res.redirect("back");
 };

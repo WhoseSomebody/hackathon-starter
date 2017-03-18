@@ -1,27 +1,26 @@
 extends layout
 
 block content
-  h1 Hackathon Starter
-  p.lead A boilerplate for Node.js web applications.
+  h1 Thoughts Cloud
+  p.lead Add your thought for now!
   hr
   .row
-    .col-sm-6
-      h2 Heading
-      p Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui.
-      p
-        a.btn.btn-default(href='#', role='button') View details »
-    .col-sm-6
-      h2 Heading
-      p Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui.
-      p
-        a.btn.btn-default(href='#', role='button') View details »
-    .col-sm-6
-      h2 Heading
-      p Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui.
-      p
-        a.btn.btn-default(href='#', role='button') View details »
-    .col-sm-6
-      h2 Heading
-      p Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui.
-      p
-        a.btn.btn-default(href='#', role='button') View details »
+    form.form-horizontal(method='POST' action="/thought/add")
+      input(type='hidden', name='_csrf', value=_csrf)
+      .form-group
+        label(class='col-sm-2 control-label', for='thought') Though
+        .col-sm-8
+          input.form-control(type='text', name='thought', id='thought', autofocus=true)
+      .form-group
+        .col-sm-offset-2.col-sm-8
+          button.btn.btn-primary(type='submit')
+            i.fa.fa-envelope
+            | Add
+
+      if user
+        .form-group
+          label.col-sm-2.control-label(for='thoughts') Your Thoughts
+          .col-sm-8
+            ul.list-group(id='thoughts')
+              each thought in user.thoughts
+                li.list-group-item= thought
